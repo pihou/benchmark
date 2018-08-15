@@ -9,32 +9,55 @@ import (
 	"strconv"
 )
 
+var sPool = make(chan *net.TCPConn, 3)
+
 func main() {
-	fmt.Println("vim-go")
-	newSocket()
+	for i := 0; i < 3; i++ {
+		c := newSocket()
+		sPool <- c
+	}
+	for i := 0; i < 10; i++ {
+		go func(index int) {
+			for {
+				c := <-sPool
+				succ := read(c, index)
+				if succ {
+					sPool <- c
+				} else {
+					sPool <- newSocket()
+				}
+			}
+		}(i)
+	}
 	time.Sleep(time.Second * 1000)
 }
 
-func newSocket() {
-	//serverAddr := fmt.Sprintf("%s:%d", masterHost, masterPort)
+func newSocket() *net.TCPConn {
 	tcpAddr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:1008")
 	conn, err := net.DialTCP("tcp", nil, tcpAddr)
 	if err != nil {
 		log.Fatalf("Failed to connect to the Locust master: %s %s", tcpAddr, err)
 	}
 	conn.SetNoDelay(true)
-	go func() {
-		for z := 0; z < 10; z++ {
-			x := "GET / HTTP/1.1\r\nHost: 127.0.0.1:1008\r\n\r\n"
-			fmt.Println(">>>>>>>> FanPrint[0].newSocket", conn)
-			conn.Write([]byte(x))
-			read(conn)
-		}
-		time.Sleep(time.Second * 1000)
-	}()
+	return conn
 }
 
-func read(c *net.TCPConn) {
+func read(c *net.TCPConn, index int) bool {
+	x := "GET / HTTP/1.1\r\nHost: 127.0.0.1:1008\r\n\r\n"
+	length := len(x)
+	for {
+		count, err := c.Write([]byte(x))
+		if err != nil {
+			fmt.Println(">>>>>>>> FanPrint[2].write", err)
+			return false
+		}
+		x = x[count:]
+		length -= count
+		if length == 0 {
+			break
+		}
+	}
+
 	rH := false
 	rR := false
 	b := make([]byte, 1024)
@@ -45,7 +68,7 @@ func read(c *net.TCPConn) {
 		count, err := c.Read(b)
 		if err != nil {
 			fmt.Println(">>>>>>>> FanPrint[0].read", err)
-			break
+			return false
 		}
 		buffer = append(buffer, b[:count]...)
 		if !rH {
@@ -63,7 +86,7 @@ func read(c *net.TCPConn) {
 					first = j + 2
 					if !rR {
 						rR = true
-						fmt.Println(">>>>>>>> FanPrint[3].read", head)
+						fmt.Println(">>>>>>>> FanPrint[3].read", index, head)
 					} else if head == "" {
 						rH = true
 						break
@@ -87,4 +110,5 @@ func read(c *net.TCPConn) {
 			break
 		}
 	}
+	return true
 }
