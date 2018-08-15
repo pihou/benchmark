@@ -3,37 +3,45 @@ package main
 import "fmt"
 import "net"
 import "log"
-import "time"
+
+//import "time"
 import "strings"
 import (
 	"strconv"
 )
 
-var sPool = make(chan *net.TCPConn, 3)
+var sPool = make(chan *net.TCPConn, 256)
 
-func main() {
-	for i := 0; i < 3; i++ {
+//func main() {
+//	for i := 0; i < 3; i++ {
+//		c := newSocket()
+//		sPool <- c
+//	}
+//	for i := 0; i < 10; i++ {
+//		go func(index int) {
+//			for {
+//				c := <-sPool
+//				succ := read(c, index)
+//				if succ {
+//					sPool <- c
+//				} else {
+//					sPool <- newSocket()
+//				}
+//			}
+//		}(i)
+//	}
+//	time.Sleep(time.Second * 1000)
+//}
+
+func Init() {
+	for i := 0; i < 256; i++ {
 		c := newSocket()
 		sPool <- c
 	}
-	for i := 0; i < 10; i++ {
-		go func(index int) {
-			for {
-				c := <-sPool
-				succ := read(c, index)
-				if succ {
-					sPool <- c
-				} else {
-					sPool <- newSocket()
-				}
-			}
-		}(i)
-	}
-	time.Sleep(time.Second * 1000)
 }
 
 func newSocket() *net.TCPConn {
-	tcpAddr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:1008")
+	tcpAddr, _ := net.ResolveTCPAddr("tcp", "k8s-node1.shoupihou.site:1008")
 	conn, err := net.DialTCP("tcp", nil, tcpAddr)
 	if err != nil {
 		log.Fatalf("Failed to connect to the Locust master: %s %s", tcpAddr, err)
@@ -43,7 +51,7 @@ func newSocket() *net.TCPConn {
 }
 
 func read(c *net.TCPConn, index int) bool {
-	x := "GET / HTTP/1.1\r\nHost: 127.0.0.1:1008\r\n\r\n"
+	x := "GET /app/benchmark/ HTTP/1.1\r\nHost: k8s-node1.shoupihou.site:1008\r\n\r\n"
 	length := len(x)
 	for {
 		count, err := c.Write([]byte(x))
